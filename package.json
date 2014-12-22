@@ -1,0 +1,22 @@
+{
+  "name": "alley",
+  "version": "1.0.0",
+  "description": "Vagrant Box hosting Service",
+  "main": "src/server.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sparticvs/alley.git"
+  },
+  "author": "Charles `sparticvs' Timko <sparticvs@popebp.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/sparticvs/alley/issues"
+  },
+  "homepage": "https://github.com/sparticvs/alley"
+}
