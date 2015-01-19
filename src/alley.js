@@ -171,6 +171,12 @@ var VersionProvider = sequelize.define('versionProvider', {
     }
 });
 
+User.sync();
+Box.sync();
+Version.sync();
+Provider.sync();
+VersionProvider.sync();
+
 /**
  * Express Framework File transfer Policy
  */
