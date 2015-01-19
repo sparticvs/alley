@@ -39,17 +39,20 @@ params.extend(app);
 var User = sequelize.define('user', {
     userId: {
         type: Sequelize.UUID,
+        allowNull: false,
         primaryKey: true,
         defaultValue: Sequelize.UUIDV4,
         comment: 'User Identifier used for sessions'
     },
     userName: {
         type: Sequelize.STRING(32),
+        allowNull: false,
         unique: true,
         comment: 'Username'
     },
     userEmail: {
         type: Sequelize.STRING,
+        allowNull: false,
         unique: true,
         validate: {
             isEmail: true
@@ -58,19 +61,24 @@ var User = sequelize.define('user', {
     },
     userSalt: {
         type: Sequelize.STRING(8),
+        allowNull: false,
         //defaultValue: Random Salt String,
         comment: 'Salt to be used in the hash'
     },
     userKey: {
         type: Sequelize.TEXT,
+        allowNull: false,
         comment: 'Result of the PBKDF2'
     },
     userRounds: {
         type: Sequelize.INTEGER,
+        allowNull: false,
         comment: 'Rounds to use for PBKDF2'
     },
     userAlgo: {
         type: Sequelize.ENUM('sha1', 'sha256', 'sha384', 'sha512', 'sha3'),
+        allowNull: false,
+        defaultValue: 'sha512',
         comment: 'Hashing Algorithm'
     }
 });
@@ -78,39 +86,48 @@ var User = sequelize.define('user', {
 var Box = sequelize.define('box', {
     boxId: {
         type: Sequelize.UUID,
+        allowNull: false,
         primaryKey: true,
         defaultValue: Sequelize.UUIDV4,
         comment: 'Box Identifier used for modifying operations'
     },
     boxName: {
         type: Sequelize.STRING(64),
+        allowNull: false,
         comment: 'Box Name used in the URL. Unique PER user'
     },
     boxOwner: {
         type: Sequelize.UUID,
+        allowNull: false,
         references: User,
         referencesKey: 'userId',
         comment: 'User that owns this box'
     },
     boxDescription: {
         type: Sequelize.TEXT,
+        allowNull: false,
         comment: 'Description of the Box'
     },
     boxShortDescription: {
         type: Sequelize.STRING,
+        allowNull: false,
         comment: 'Short Description of the Box'
     }
 });
 
+User.hasMany(Box, {foreignKey: 'boxOwner'});
+
 var Version = sequelize.define('version', {
     versionId: {
         type: Sequelize.UUID,
+        allowNull: false,
         primaryKey: true,
         defaultValue: Sequelize.UUIDV4,
         comment: 'Identifier used by modification operations'
     },
     versionString: {
         type: Sequelize.STRING(64),
+        allowNull: false,
         validate: {
             is: /^\d\.\d$/
         },
@@ -118,35 +135,43 @@ var Version = sequelize.define('version', {
     },
     boxId: {
         type: Sequelize.UUID,
+        allowNull: false,
         references: Box,
         referencesKey: 'boxId',
         comment: 'Box this version is for'
     },
     versionStatus: {
         type: Sequelize.ENUM('active', 'inactive'), // This is a guess, anyone know?
+        allowNull: false,
         comment: 'Status of this version'
     },
     versionDescription: {
         type: Sequelize.TEXT,
+        allowNull: false,
         comment: 'Description for this particular version'
     }
 });
+
+Box.hasMany(Version);
 
 var Provider = sequelize.define('provider', {
     // Yes, I know this UUID is defined slightly differently. The security of
     // the providers isn't necessary since they will basically be static.
     providerId: {
         type: Sequelize.UUID,
+        allowNull: false,
         primaryKey: true,
         defaultValue: Sequelize.UUIDV1,
         comment: 'Identifier for Provider.'
     },
     providerName: {
         type: Sequelize.STRING,
+        allowNull: false,
         comment: 'Name of the provider.'
     },
     providerShortName: {
         type: Sequelize.STRING(32),
+        allowNull: false,
         validate: {
             isLowercase: true
         },
@@ -157,6 +182,7 @@ var Provider = sequelize.define('provider', {
 var VersionProvider = sequelize.define('versionProvider', {
     providerId: {
         type: Sequelize.UUID,
+        allowNull: false,
         primaryKey: true,
         references: Provider,
         referencesKey: 'providerId',
@@ -164,6 +190,7 @@ var VersionProvider = sequelize.define('versionProvider', {
     },
     versionId: {
         type: Sequelize.UUID,
+        allowNull: false,
         primaryKey: true,
         references: Version,
         referencesKey: 'versionId',
@@ -171,11 +198,58 @@ var VersionProvider = sequelize.define('versionProvider', {
     }
 });
 
-User.sync();
-Box.sync();
-Version.sync();
-Provider.sync();
-VersionProvider.sync();
+Provider.hasMany(VersionProvider);
+Version.hasMany(VersionProvider);
+
+User.sync().then(function() {
+    return Box.sync().then(function() {
+        return Version.sync().then(function() {
+            return Provider.sync().then(function() {
+                return VersionProvider.sync();
+            });
+        });
+    });
+}).then(TEST_DATA);
+
+/**** DEBUG DEBUG DEBUG
+ * TEST DATA
+ */
+
+// TODO Reorg this with anon funcs to force call order
+function TEST_DATA() {
+User.create({
+    userName: 'sparticvs',
+    userEmail: 'sparticvs@popebp.com',
+    userSalt: '', // For now
+    userKey: '',
+    userRounds: 0
+});
+
+User.findOne({where: {userName: 'sparticvs'}}).then(function(user) { 
+    return Box.create({
+        boxName: 'ubuntu-14.04.1',
+        boxOwner: user.userId,
+        boxDescription: 'Obvious',
+        boxShortDescription: 'Obvious'
+    });
+});
+
+Box.findOne({where: {boxName: 'ubuntu-14.04.1'}}).then(function(box) {
+    return Version.create({
+        versionString: '1.0',
+        boxId: box.boxId,
+        versionStatus: 'active',
+        versionDescription: 'Test'
+    });
+});
+
+Provider.bulkCreate([
+    {providerName: 'Oracle VirtualBox', providerShortName: 'virtualbox'},
+    {providerName: 'VMWare Workstation', providerShortName: 'vmware'},
+    {providerName: 'Parallels Desktop', providerShortName: 'parallels'},
+    {providerName: 'Qemu/KVM Raw Image', providerShortName: 'qemu'}
+]);
+}
 
 /**
  * Express Framework File transfer Policy
@@ -238,13 +312,14 @@ app.use('/assets/', express.static('assets', file_policy));
 
 app.param('user', /^[a-z0-9_-]+$/);
 app.get('/:user', function(req, res) {
-    res.json({
-        'user' : req.params.user,
-        'boxes' : [
-            "alpha",
-            "beta",
-            "gamma"
-        ]});
+    return User.findOne({where: {userName: req.params.user}, include: [{model: Box, as: 'boxes'}]}).then(function(user) {
+        res.json({
+            'user' : user.userName,
+            'boxes' : user.boxes.map(function(box) {
+                return box.boxName;
+            })
+        });
+    });
 });
 
 function box_data_handler(req, res) {
