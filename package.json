@@ -21,7 +21,9 @@
   "homepage": "https://github.com/sparticvs/alley",
   "dependencies": {
     "express": "^4.10.6",
-    "express-params": "0.0.3"
+    "express-params": "0.0.3",
+    "sequelize": "^2.0.0-rc7",
+    "sqlite3": "^3.0.4"
   },
   "devDependencies": {}
 }
