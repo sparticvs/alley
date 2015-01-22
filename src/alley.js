@@ -116,6 +116,7 @@ var Box = sequelize.define('box', {
 });
 
 User.hasMany(Box, {foreignKey: 'boxOwner'});
+Box.belongsTo(User, {foreignKey: 'boxOwner'});
 
 var Version = sequelize.define('version', {
     versionId: {
@@ -153,6 +154,7 @@ var Version = sequelize.define('version', {
 });
 
 Box.hasMany(Version);
+Version.belongsTo(Box);
 
 var Provider = sequelize.define('provider', {
     // Yes, I know this UUID is defined slightly differently. The security of
@@ -214,41 +216,39 @@ User.sync().then(function() {
 /**** DEBUG DEBUG DEBUG
  * TEST DATA
  */
-
-// TODO Reorg this with anon funcs to force call order
 function TEST_DATA() {
-User.create({
-    userName: 'sparticvs',
-    userEmail: 'sparticvs@popebp.com',
-    userSalt: '', // For now
-    userKey: '',
-    userRounds: 0
-});
+    Provider.bulkCreate([
+        {providerName: 'Oracle VirtualBox', providerShortName: 'virtualbox'},
+        {providerName: 'VMWare Workstation', providerShortName: 'vmware'},
+        {providerName: 'Parallels Desktop', providerShortName: 'parallels'},
+        {providerName: 'Qemu/KVM Raw Image', providerShortName: 'qemu'}
+    ]);
 
-User.findOne({where: {userName: 'sparticvs'}}).then(function(user) { 
-    return Box.create({
-        boxName: 'ubuntu-14.04.1',
-        boxOwner: user.userId,
-        boxDescription: 'Obvious',
-        boxShortDescription: 'Obvious'
+    return User.create({
+        userName: 'sparticvs',
+        userEmail: 'sparticvs@popebp.com',
+        userSalt: '', // For now
+        userKey: '',
+        userRounds: 0
+    }).then(function() {
+        return User.findOne({where: {userName: 'sparticvs'}}).then(function(user) { 
+            return Box.create({
+                boxName: 'ubuntu-14.04.1',
+                boxOwner: user.userId,
+                boxDescription: 'Obvious',
+                boxShortDescription: 'Obvious'
+            }).then(function() {
+                return Box.findOne({where: {boxName: 'ubuntu-14.04.1'}}).then(function(box) {
+                    return Version.create({
+                        versionString: '1.0',
+                        boxId: box.boxId,
+                        versionStatus: 'active',
+                        versionDescription: 'Test'
+                    });
+                });
+            });
+        });
     });
-});
-
-Box.findOne({where: {boxName: 'ubuntu-14.04.1'}}).then(function(box) {
-    return Version.create({
-        versionString: '1.0',
-        boxId: box.boxId,
-        versionStatus: 'active',
-        versionDescription: 'Test'
-    });
-});
-
-Provider.bulkCreate([
-    {providerName: 'Oracle VirtualBox', providerShortName: 'virtualbox'},
-    {providerName: 'VMWare Workstation', providerShortName: 'vmware'},
-    {providerName: 'Parallels Desktop', providerShortName: 'parallels'},
-    {providerName: 'Qemu/KVM Raw Image', providerShortName: 'qemu'}
-]);
 }
 
 /**
@@ -274,6 +274,28 @@ var file_policy = {
  * <domain>/<project>/<box>/version/<num>/provider/<provider>.box
  */
 
+app.get('/', function(req, res) {
+    return User.findAll().then(function(users) {
+        res.json(users.map(function(user) {
+            return user.userName;
+        }));
+    });
+});
+
+app.use('/assets/', express.static('assets', file_policy));
+
+app.param('user', /^[a-z0-9_-]+$/);
+app.get('/:user', function(req, res) {
+    return User.findOne({where: {userName: req.params.user}, include: [{model: Box, as: 'boxes'}]}).then(function(user) {
+        res.json({
+            'user' : user.userName,
+            'boxes' : user.boxes.map(function(box) {
+                return box.boxName;
+            })
+        });
+    });
+});
+
 /**
  * Each box follows a specific JSON format.
  */
@@ -297,45 +319,31 @@ var template = {
     ]
 };
 
-app.get('/', function(req, res) {
-    res.sendFile('index.html', file_policy, function(err) {
-        if(err) {
-            console.log(err);
-            res.status(err.status).end();
-        } else {
-            console.log('Sent index');
-        }
-    });
-});
-
-app.use('/assets/', express.static('assets', file_policy));
-
-app.param('user', /^[a-z0-9_-]+$/);
-app.get('/:user', function(req, res) {
-    return User.findOne({where: {userName: req.params.user}, include: [{model: Box, as: 'boxes'}]}).then(function(user) {
-        res.json({
-            'user' : user.userName,
-            'boxes' : user.boxes.map(function(box) {
-                return box.boxName;
-            })
+function box_data_handler(req, res) {
+    // If the URL Ends with .json we need to drop it. We let the Regex do that
+    // below.
+    var boxName = req.params.box;
+    if(boxName === undefined) {
+        boxName = req.params.boxjson[1];
+    }
+    User.findOne({where: {userName: req.params.user},
+               include: [{model: Box, where: {boxName: boxName}}]}).then(function(user) {
+        Version.findAll({where: {boxId: user.boxes[0].boxId}}).then(function(versions) {
+            template["description"] = user.boxes[0].boxDescription;
+            template["short_description"] = user.boxes[0].boxShortDescription;
+            template["name"] = user.boxes[0].userName + '/' + user.boxes[0].boxName;
+            template["versions"] = versions.map(function(version) {
+                return { version: version.versionString, status: version.versionStatus };
+            });
+            res.json(template);
         });
     });
-});
-
-function box_data_handler(req, res) {
-    template["name"] = req.params.user + '/';
-    if(req.params.box !== undefined) {
-        template["name"] += req.params.box;
-    } else {
-        template["name"] += req.params.boxjson[1];
-    }
-    res.json(template);
 }
 
-app.param('box', /^[a-z0-9_-]+$/i);
+app.param('box', /^[a-z0-9\._-]+[^\.json]$/i);
 app.get('/:user/:box', box_data_handler);
 
-app.param('boxjson', /^(\w+)\.json$/);
+app.param('boxjson', /^([a-z0-9\._-]+)\.json$/);
 app.get('/:user/:boxjson', box_data_handler);
 
 app.param('providerbox', /^\w+\.box$/);
