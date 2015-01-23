@@ -331,7 +331,7 @@ function box_data_handler(req, res) {
         Version.findAll({where: {boxId: user.boxes[0].boxId}}).then(function(versions) {
             template["description"] = user.boxes[0].boxDescription;
             template["short_description"] = user.boxes[0].boxShortDescription;
-            template["name"] = user.boxes[0].userName + '/' + user.boxes[0].boxName;
+            template["name"] = user.userName + '/' + user.boxes[0].boxName;
             template["versions"] = versions.map(function(version) {
                 return { version: version.versionString, status: version.versionStatus };
             });
