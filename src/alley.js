@@ -182,6 +182,7 @@ var Provider = sequelize.define('provider', {
 });
 
 var VersionProvider = sequelize.define('versionProvider', {
+    /*
     providerId: {
         type: Sequelize.UUID,
         allowNull: false,
@@ -197,11 +198,11 @@ var VersionProvider = sequelize.define('versionProvider', {
         references: Version,
         referencesKey: 'versionId',
         comment: 'Version Ident'
-    }
+    }*/
 });
 
-Provider.hasMany(VersionProvider);
-Version.hasMany(VersionProvider);
+Version.belongsToMany(Provider, {through: VersionProvider});
+Provider.belongsToMany(Version, {through: VersionProvider});
 
 User.sync().then(function() {
     return Box.sync().then(function() {
@@ -244,6 +245,12 @@ function TEST_DATA() {
                         boxId: box.boxId,
                         versionStatus: 'active',
                         versionDescription: 'Test'
+                    }).then(function() {
+                        return Version.findOne({where: {versionString: '1.0'}}).then(function(version) {
+                            return Provider.findOne({where: {providerShortName: 'vmware'}}).then(function(provider) {
+                                return version.addProvider(provider);
+                            });
+                        });
                     });
                 });
             });
@@ -346,10 +353,12 @@ app.get('/:user/:box', box_data_handler);
 app.param('boxjson', /^([a-z0-9\._-]+)\.json$/);
 app.get('/:user/:boxjson', box_data_handler);
 
-app.param('providerbox', /^\w+\.box$/);
+app.param('providerbox', /^([a-z0-9\._-]+)\.box$/);
 app.get('/:user/:box/version/:version/provider/:providerbox', function(req, res) {
-    res.json(req.params);
-
+    // TODO Rewrite this to use the ORMs DAO
+    User.findOne({where: {userName: req.params.user}, include: [{model: Box, where: {boxName: req.params.box}, include: [{model: Version, where: {versionString: req.params.version}, include: [{model: VersionProvider}, {model: Provider, where: {providerShortName: req.params.providerbox}}]}]}]}).then(function(user) {
+        res.json(user);
+    });
 });
 
 app.listen(8080);
