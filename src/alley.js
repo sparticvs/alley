@@ -96,13 +96,13 @@ var Box = sequelize.define('box', {
         allowNull: false,
         comment: 'Box Name used in the URL. Unique PER user'
     },
-    boxOwner: {
+/*    boxOwner: {
         type: Sequelize.UUID,
         allowNull: false,
         references: User,
         referencesKey: 'userId',
         comment: 'User that owns this box'
-    },
+    },*/
     boxDescription: {
         type: Sequelize.TEXT,
         allowNull: false,
@@ -134,6 +134,7 @@ var Version = sequelize.define('version', {
         },
         comment: 'Version String'
     },
+        /**
     boxId: {
         type: Sequelize.UUID,
         allowNull: false,
@@ -141,6 +142,7 @@ var Version = sequelize.define('version', {
         referencesKey: 'boxId',
         comment: 'Box this version is for'
     },
+    **/
     versionStatus: {
         type: Sequelize.ENUM('active', 'inactive'), // This is a guess, anyone know?
         allowNull: false,
@@ -181,7 +183,7 @@ var Provider = sequelize.define('provider', {
     }
 });
 
-var VersionProvider = sequelize.define('versionProvider', {
+var VersionProvider = sequelize.define('versionProvider');
     /*
     providerId: {
         type: Sequelize.UUID,
@@ -198,9 +200,8 @@ var VersionProvider = sequelize.define('versionProvider', {
         references: Version,
         referencesKey: 'versionId',
         comment: 'Version Ident'
-    }*/
-});
-
+    }
+});*/
 Version.belongsToMany(Provider, {through: VersionProvider});
 Provider.belongsToMany(Version, {through: VersionProvider});
 
@@ -240,7 +241,7 @@ function TEST_DATA() {
                 boxShortDescription: 'Obvious'
             }).then(function() {
                 return Box.findOne({where: {boxName: 'ubuntu-14.04.1'}}).then(function(box) {
-                    return Version.create({
+                    return box.createVersion({
                         versionString: '1.0',
                         boxId: box.boxId,
                         versionStatus: 'active',
@@ -335,7 +336,7 @@ function box_data_handler(req, res) {
     }
     User.findOne({where: {userName: req.params.user},
                include: [{model: Box, where: {boxName: boxName}}]}).then(function(user) {
-        Version.findAll({where: {boxId: user.boxes[0].boxId}}).then(function(versions) {
+        user.boxes[0].getVersions().then(function(versions) {
             template["description"] = user.boxes[0].boxDescription;
             template["short_description"] = user.boxes[0].boxShortDescription;
             template["name"] = user.userName + '/' + user.boxes[0].boxName;
@@ -355,9 +356,12 @@ app.get('/:user/:boxjson', box_data_handler);
 
 app.param('providerbox', /^([a-z0-9\._-]+)\.box$/);
 app.get('/:user/:box/version/:version/provider/:providerbox', function(req, res) {
-    // TODO Rewrite this to use the ORMs DAO
-    User.findOne({where: {userName: req.params.user}, include: [{model: Box, where: {boxName: req.params.box}, include: [{model: Version, where: {versionString: req.params.version}, include: [{model: VersionProvider}, {model: Provider, where: {providerShortName: req.params.providerbox}}]}]}]}).then(function(user) {
-        res.json(user);
+    User.findOne({where: {userName: req.params.user}, include: [{model: Box, where: {boxName: req.params.box}}]}).then(function(user) {
+        return user.boxes[0].getVersions({where: {versionString: req.params.version}}).then(function(version) {
+            return version[0].getProviders({where: {providerShortName: req.params.providerbox[1]}}).then(function(providers) {
+                res.json(providers.length > 0);
+            });
+        });
     });
 });
 
