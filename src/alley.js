@@ -359,7 +359,13 @@ app.get('/:user/:box/version/:version/provider/:providerbox', function(req, res)
     User.findOne({where: {userName: req.params.user}, include: [{model: Box, where: {boxName: req.params.box}}]}).then(function(user) {
         return user.boxes[0].getVersions({where: {versionString: req.params.version}}).then(function(version) {
             return version[0].getProviders({where: {providerShortName: req.params.providerbox[1]}}).then(function(providers) {
-                res.json(providers.length > 0);
+                if(providers.length > 0) {
+                    res.sendFile( , file_policy, function(err) {
+                        if(err) {
+                            res.status(err.status).end();
+                        }
+                    });
+                }
             });
         });
     });
