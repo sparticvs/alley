@@ -360,7 +360,7 @@ app.get('/:user/:box/version/:version/provider/:providerbox', function(req, res)
         return user.boxes[0].getVersions({where: {versionString: req.params.version}}).then(function(version) {
             return version[0].getProviders({where: {providerShortName: req.params.providerbox[1]}}).then(function(providers) {
                 if(providers.length > 0) {
-                    res.sendFile( , file_policy, function(err) {
+                    res.sendFile(req.path, file_policy, function(err) {
                         if(err) {
                             res.status(err.status).end();
                         }
