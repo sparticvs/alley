@@ -1,0 +1,21 @@
+{
+  "name": "alley",
+  "description": "Vagrant Box hosting Service",
+  "main": "",
+  "authors": [
+    "Charles `sparticvs' Timko <sparticvs@popebp.com>"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/sparticvs/alley",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "react": "^16.0.0"
+  }
+}
